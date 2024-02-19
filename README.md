@@ -36,14 +36,15 @@ I've written several python interfaces for SDRs
 
 Each of these use python callbacks of the form
 
-`
+<code>
 def process_iqs (iq):
     # iq is an numpy array of type numpy.complex64
     pass
-`
-or as a class with the __call__ member defined a notional example
+</code>
 
-`
+or as a class with the <code>__call__</code> member defined a notional example
+
+<code>
 from liquiddsp import NCO, Sampler, IIRfilter
 class RadioProcess:
 
@@ -56,4 +57,4 @@ class RadioProcess:
     def __call__(self, iq):
         pcm = self.resample ( self.am ( self.tuner (iq) ))
         # write pcm.tobytes() to pyaudio stream
-`
+</code>
