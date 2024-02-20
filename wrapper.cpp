@@ -75,149 +75,6 @@ public:
     }
 };
 
-class PopFilter
-{
-
-public:
-
-    bool         mEnable;
-    float        mPeakPowerFilter;
-    int          mDelayTime;
-    int          mBlankWidth;
-    float        mTriggerFraction;
-
-    iirfilt_rrrf mHighpass;
-    wdelaycf     mDelay;
-
-    PopFilter (void) {
-        mEnable = false;
-        mDelayTime = 3;
-        mBlankWidth = 10;
-        mPeakPowerFilter = 100.0;
-        mTriggerFraction = 1.0;
-        mHighpass = nullptr;
-        updateHighpass ();
-        mDelay = nullptr;
-        set_delay(mDelayTime);
-        set_powerFilter (mPeakPowerFilter);
-        mProcess = &PopFilter::ready;
-    }
-
-    ~PopFilter (void) {
-        iirfilt_rrrf_destroy (mHighpass);
-        wdelaycf_destroy (mDelay);
-    }
-
-    int get_delay (void) {
-        return mDelayTime;
-    }
-
-    void set_delay (int dt) {
-        if (mDelay) wdelaycf_destroy (mDelay);
-        mDelay = wdelaycf_create(dt);
-    }
-
-    float get_Fc (void) {
-        return hp_fc;
-    }
-
-    void set_Fc (float fc) {
-        hp_fc = fc;
-        updateHighpass ();
-    }
-
-    float get_powerFilter (void) {
-        return mPeakPowerFilter;
-    }
-
-    void set_powerFilter (float N) {
-        mPeakPowerFilter = N;
-        mW0 = (N - 1.0) / N;
-        mW1 = 1.0 / N;
-    }
-
-    py::array_t<std::complex<float>> call (py::array_t<std::complex<float>> inp) {
-        if ( not mEnable )
-            return inp;
-        int np (py::len(inp));
-        py::array_t<std::complex<float>> ret(np);
-        std::complex<float> *zin = array_to_ptr<std::complex<float>>(inp);
-        std::complex<float> *zout = array_to_ptr<std::complex<float>>(ret);
-        for (auto n = 0; n < np; n++) {
-            std::complex<float> z;
-            powerMonitor (zin[n]);
-            wdelaycf_push (mDelay,zin[n]);
-            wdelaycf_read (mDelay,&z);
-            zout[n] = (this->*mProcess)(z);
-        }
-        return ret;
-    }        
-
-private:
-
-    // high pass filter parameters
-    liquid_iirdes_filtertype hp_ftype  = LIQUID_IIRDES_BUTTER;
-    liquid_iirdes_bandtype   hp_btype  = LIQUID_IIRDES_HIGHPASS;
-    liquid_iirdes_format     hp_format = LIQUID_IIRDES_SOS;
-    int                      hp_order  = 4;
-    float                    hp_fc     = 0.05f;
-    float                    hp_f0     = 0.40f; // ignored
-    float                    hp_Ap     = 0.70f;
-    float                    hp_As     = 60.0f;
-    
-    typedef std::complex<float> (PopFilter::*StateFunction)(std::complex<float>);
-    StateFunction mProcess;
-    float         mPeak;
-    float         mLevel;
-    float         mW0;
-    float         mW1;
-
-    int           mCounter;
-
-    void updateHighpass (void) {
-        if (mHighpass) iirfilt_rrrf_destroy (mHighpass);
-        mHighpass = iirfilt_rrrf_create_prototype (
-                        hp_ftype,
-                        hp_btype,
-                        hp_format,
-                        hp_order,
-                        hp_fc,
-                        hp_f0,
-                        hp_Ap,
-                        hp_As);
-    }
-
-    // computes 
-    void powerMonitor (std::complex<float> zin) {
-        float pwr = (zin * std::conj(zin)).real();
-        iirfilt_rrrf_execute (mHighpass, pwr, &pwr);
-        if ( pwr > mPeak )  
-            mPeak = pwr;
-        else
-            mPeak = mW0 * mPeak + mW1 * pwr;
-        mLevel = mTriggerFraction * mPeak;
-    }
-
-    std::complex<float> ready (std::complex<float> zin) {
-        float pwr = (zin * std::conj(zin)).real();
-        if ( pwr > mLevel ) {
-            mProcess = &PopFilter::blanking;
-            mCounter = mBlankWidth;
-            return std::complex<float>(0.0,0.0);
-        }
-        return zin;
-    }
-
-    std::complex<float> blanking (std::complex<float> zin) {
-        mCounter = mCounter - 1;
-        if ( mCounter > 0) {
-            return std::complex<float> (0.0,0.0);
-        }
-        mProcess = &PopFilter::ready;
-        return zin;
-    }
-};
-
 py::array_t<liquid_float_complex> bytes_to_iq ( py::bytes byts )
 {
     std::string data = py::cast<std::string>(byts);
@@ -245,8 +102,8 @@ std::map<std::string,liquid_iirdes_bandtype> band_type_map =
     {"bandstop", LIQUID_IIRDES_BANDSTOP}
 };
 
-// I'm going to do just LIQUID_IIRDES_TF, or transfer function format
-class IIRfilter
+// I'm going to do just LIQUID_IIRDES_SOS, or the one that works
+class IIRfilter_complex
 {
 public:
 
@@ -260,7 +117,7 @@ public:
 
     iirfilt_crcf mFilter;
 
-    IIRfilter (std::string filter_type, std::string band_type, int order, float fc, float f0, float Ap, float As) {
+    IIRfilter_complex (std::string filter_type, std::string band_type, int order, float fc, float f0, float Ap, float As) {
         mOrder = order;
         mFc = fc;
         mF0 = f0;
@@ -280,7 +137,7 @@ public:
         mFilter = iirfilt_crcf_create_prototype (ft,bt,LIQUID_IIRDES_SOS,order,fc,f0,Ap,As);
     }
 
-    ~IIRfilter (void) {
+    ~IIRfilter_complex (void) {
         iirfilt_crcf_destroy (mFilter);
     }
 
@@ -294,12 +151,68 @@ public:
         return ret;
     }
 
-    py::array_t<std::complex<float>> execute (py::array_t<std::complex<float>> x) {
-        py::array_t<std::complex<float>> ret(py::len(x));
-        std::complex<float> *z = array_to_ptr<std::complex<float>>(x);
+    py::array_t<std::complex<float>> execute (py::array_t<std::complex<float>> inp) {
+        py::array_t<std::complex<float>> ret(py::len(inp));
+        std::complex<float> *x = array_to_ptr<std::complex<float>>(inp);
         std::complex<float> *y = array_to_ptr<std::complex<float>>(ret);
-        for (auto n = 0; n < (int)py::len(x); n++)
-            iirfilt_crcf_execute (mFilter, z[n], &y[n]);
+        iirfilt_crcf_execute_block (mFilter,x,py::len(inp),y);
+        return ret;
+    }
+};
+
+class IIRfilter_real
+{
+public:
+
+    std::string  mFt;
+    std::string  mBt;
+    int          mOrder;
+    float        mFc;
+    float        mF0;
+    float        mAp;
+    float        mAs;
+
+    iirfilt_rrrf mFilter;
+
+    IIRfilter_real (std::string filter_type, std::string band_type, int order, float fc, float f0, float Ap, float As) {
+        mOrder = order;
+        mFc = fc;
+        mF0 = f0;
+        mAp = Ap;
+        mAs = As;
+
+        liquid_iirdes_filtertype ft(LIQUID_IIRDES_BUTTER);
+        if ( filter_type_map.find(filter_type) != filter_type_map.end() ) {
+            mFt = filter_type;
+            ft = filter_type_map[filter_type];
+        }
+        liquid_iirdes_bandtype bt(LIQUID_IIRDES_LOWPASS);
+        if ( band_type_map.find(band_type) != band_type_map.end() ) {
+            mBt = band_type;
+            bt = band_type_map[band_type];
+        }
+        mFilter = iirfilt_rrrf_create_prototype (ft,bt,LIQUID_IIRDES_SOS,order,fc,f0,Ap,As);
+    }
+
+    ~IIRfilter_real (void) {
+        iirfilt_rrrf_destroy (mFilter);
+    }
+
+    void print (void) {
+        iirfilt_rrrf_print (mFilter);
+    }
+
+    std::complex<float> response (float freq) {
+        std::complex<float> ret;
+        iirfilt_rrrf_freqresponse (mFilter, freq, &ret);
+        return ret;
+    }
+
+    py::array_t<float> execute (py::array_t<float> inp) {
+        py::array_t<float> ret(py::len(inp));
+        float *x = array_to_ptr<float>(inp);
+        float *y = array_to_ptr<float>(ret);
+        iirfilt_rrrf_execute_block (mFilter,x,py::len(inp),y);
         return ret;
     }
 };
@@ -375,6 +288,38 @@ public:
         float *y = array_to_ptr<float>(ret);
         for (auto n = 0; n < py::len(data); n++)
             iirfilt_rrrf_execute (mFilt, x[n], &y[n]);
+        return ret;
+    }
+};
+
+class FreqDem
+{
+    float   mKd;
+    freqdem mModem;
+public:
+
+    FreqDem (float kd) {
+        mKd = kd;
+        mModem = freqdem_create (mKd);
+    }
+
+    ~FreqDem (void) {
+        freqdem_destroy (mModem);
+    }
+
+    void reset (void) {
+        freqdem_reset (mModem);
+    }
+
+    void print (void) {
+        freqdem_print (mModem);
+    }
+
+    py::array_t<float> demod (py::array_t<std::complex<float>> inp) {
+        py::array_t<float> ret(py::len(inp));
+        std::complex<float> *x = array_to_ptr<std::complex<float>>(inp);
+        float *y = array_to_ptr<float>(ret);
+        freqdem_demodulate_block (mModem, x, py::len(inp), y);
         return ret;
     }
 };
@@ -497,42 +442,6 @@ public:
         }   
         return ampmodem_create (mod,mt,suppress);
     }
-};
-
-// liquids NCO is a phase lock loop. What we need is simply a local 
-// oscillator to shift frequency up and down for fine tunning.
-class LO 
-{
-public:
-    float               mFreq;
-    std::complex<float> mPhase;
-    std::complex<float> mPhaseStep;
-
-    LO (float fr) : mPhase(1.0,0.0) {
-        set_freq (fr);
-    }
-
-    ~LO (void) {}
-
-    float get_freq (void) {
-        return mFreq;
-    }
-
-    void set_freq (float fr) {
-        mFreq = fr;
-        mPhaseStep = std::polar(1.0,2*M_PI*fr);
-    }
-
-    py::array_t<liquid_float_complex> shift (py::array_t<liquid_float_complex> inp) {
-        py::array_t<liquid_float_complex> ret(py::len(inp));
-        liquid_float_complex *y = array_to_ptr<liquid_float_complex>(ret);
-        for (auto n = 0; n < py::len(inp); n++) {
-            y[n] = mPhase * inp.at(n);
-            mPhase = mPhase * mPhaseStep;
-        }
-        mPhase = mPhase / std::abs(mPhase);
-        return ret;
-    }   
 };
 
 std::map<std::string,liquid_ncotype> nco_type_map =
@@ -765,7 +674,7 @@ PYBIND11_MODULE (liquiddsp, m)
         .def_property ("delay", &Delay::get_delay, &Delay::set_delay) 
         .def ("__call__", &Delay::call);
 
-    py::class_<IIRfilter>(m, "IIRfilter")
+    py::class_<IIRfilter_complex>(m, "IIRFilterComplex")
         .def (py::init<std::string,std::string,int,float,float,float,float>(), 
             py::arg("filter_type") = "butter",
             py::arg("band_type") = "lowpass",
@@ -774,26 +683,36 @@ PYBIND11_MODULE (liquiddsp, m)
             py::arg("F0") = 0.3f,
             py::arg("Ap") = 0.7f,
             py::arg("As") = 60.0)
-        .def_readonly ("filter_type", &IIRfilter::mFt)
-        .def_readonly ("band_type", &IIRfilter::mBt)
-        .def_readonly ("order", &IIRfilter::mOrder)
-        .def_readonly ("Fc", &IIRfilter::mFc)
-        .def_readonly ("F0", &IIRfilter::mF0)
-        .def_readonly ("Ap", &IIRfilter::mAp)
-        .def_readonly ("As", &IIRfilter::mAs)
-        .def ("freqresponse", &IIRfilter::response)
-        .def ("__call__", &IIRfilter::execute)
-        .def ("print", &IIRfilter::print);
+        .def_readonly ("filter_type", &IIRfilter_complex::mFt)
+        .def_readonly ("band_type", &IIRfilter_complex::mBt)
+        .def_readonly ("order", &IIRfilter_complex::mOrder)
+        .def_readonly ("Fc", &IIRfilter_complex::mFc)
+        .def_readonly ("F0", &IIRfilter_complex::mF0)
+        .def_readonly ("Ap", &IIRfilter_complex::mAp)
+        .def_readonly ("As", &IIRfilter_complex::mAs)
+        .def ("freqresponse", &IIRfilter_complex::response)
+        .def ("__call__", &IIRfilter_complex::execute)
+        .def ("print", &IIRfilter_complex::print);
 
-    py::class_<PopFilter> (m, "PopFilter")
-        .def (py::init())
-        .def_readwrite ("enable",&PopFilter::mEnable)
-        .def_readwrite ("trigger_level", &PopFilter::mTriggerFraction)
-        .def_readwrite ("width", &PopFilter::mBlankWidth)
-        .def_property  ("Fc", &PopFilter::get_Fc, &PopFilter::set_Fc)
-        .def_property  ("delay", &PopFilter::get_delay, &PopFilter::set_delay)
-        .def_property  ("peak_filter", &PopFilter::get_powerFilter, &PopFilter::set_powerFilter)
-        .def ("__call__", &PopFilter::call);
+    py::class_<IIRfilter_real>(m, "IIRFilterReal")
+        .def (py::init<std::string,std::string,int,float,float,float,float>(), 
+            py::arg("filter_type") = "butter",
+            py::arg("band_type") = "lowpass",
+            py::arg("order") = 2,
+            py::arg("Fc") = 0.2f,
+            py::arg("F0") = 0.3f,
+            py::arg("Ap") = 0.7f,
+            py::arg("As") = 60.0)
+        .def_readonly ("filter_type", &IIRfilter_real::mFt)
+        .def_readonly ("band_type", &IIRfilter_real::mBt)
+        .def_readonly ("order", &IIRfilter_real::mOrder)
+        .def_readonly ("Fc", &IIRfilter_real::mFc)
+        .def_readonly ("F0", &IIRfilter_real::mF0)
+        .def_readonly ("Ap", &IIRfilter_real::mAp)
+        .def_readonly ("As", &IIRfilter_real::mAs)
+        .def ("freqresponse", &IIRfilter_real::response)
+        .def ("__call__", &IIRfilter_real::execute)
+        .def ("print", &IIRfilter_real::print);
 
     py::class_<HilbertTransform>(m, "HilbertTransform") 
         .def (py::init<int,float>(),py::arg("m")=5,py::arg("As")=60.0f)
@@ -810,6 +729,12 @@ PYBIND11_MODULE (liquiddsp, m)
         .def ("reset", &FMDem::reset)
         .def ("__call__", &FMDem::demod);
 
+    py::class_<FreqDem>(m,"FreqDem")
+        .def (py::init<float>())
+        .def ("reset", &FreqDem::reset)
+        .def ("print", &FreqDem::print)
+        .def ("__call__", &FreqDem::demod);
+
     py::class_<AmpModem>(m,"AmpModem")
         .def (py::init<float,std::string,bool>(),
             py::arg("modulation")=0.75, 
@@ -821,12 +746,6 @@ PYBIND11_MODULE (liquiddsp, m)
         .def ("print", &AmpModem::print)
         .def ("reset", &AmpModem::reset)
         .def ("__call__", &AmpModem::demod);
-
-    py::class_<LO>(m,"LO")
-        .def (py::init<float>(),py::arg("freq") = 0.0)
-        .def_readwrite ("phase", &LO::mPhase)
-        .def_property ("freq", &LO::get_freq, &LO::set_freq)
-        .def ("__call__", &LO::shift);
 
     py::class_<NCO>(m,"NCO")
         .def (py::init<std::string>(), py::arg("type") = "nco")
