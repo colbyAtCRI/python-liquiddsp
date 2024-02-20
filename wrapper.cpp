@@ -324,38 +324,6 @@ public:
     }
 };
 
-class FMDem
-{
-    float               mKd;
-    std::complex<float> mLastIQ;
-
-public:
-
-    FMDem (float kd) : mLastIQ(0.0,0.0) {
-        mKd = kd;
-    }
-
-   ~FMDem (void) {
-    }
-
-    void reset (void) {
-    }
-
-    void print (void) {
-    }
-
-    py::array_t<float> demod (py::array_t<std::complex<float>> inp) {
-        py::array_t<float> ret(py::len(inp));
-        std::complex<float> *x = array_to_ptr<std::complex<float>>(inp);
-        float *y = array_to_ptr<float>(ret);
-        for (auto n = 0; n < py::len(inp); n++) {
-            y[n] = std::arg(x[n] * std::conj(mLastIQ)) * mKd;
-            mLastIQ = x[n];
-        }
-        return ret;
-    }
-};
-
 std::map<std::string,liquid_ampmodem_type> ampmodem_type_map = 
 {
     {"dsb",LIQUID_AMPMODEM_DSB},
@@ -592,76 +560,100 @@ struct AGC
     agc_crcf mAGC;
 }; 
 
-class Sampler
+class RealResampler
 {
+    float       mRate;
+    resamp_rrrf mResamp;
+
 public:
 
-    Sampler (void) {
-        mRate = 0.9f;
-        mLen = 13;
-        mFc = 0.4f;
-        mAs = 60.0f;
-        mFilt = 13;
-        mRsamp = resamp_crcf_create (mRate, mLen, mFc, mAs, mFilt);
+    RealResampler (float r, int d, float fc, float sbsp, int nf) {
+        mRate = r;
+        mResamp = resamp_rrrf_create (r,d,fc,sbsp,nf);
     }
 
-    Sampler (float rate, int len, float Fc, float As, int filter) 
-    {
-        mRate= rate;
-        mLen = len;
-        mFc = Fc;
-        mAs = As;  
-        mFilt = filter;
-        mRsamp = resamp_crcf_create (mRate, mLen, mFc, mAs, mFilt);
+    ~RealResampler (void) {
+        resamp_rrrf_destroy (mResamp);
     }
 
-    static Sampler create (float rate, int len, float Fc, float As, int filter) {
-        return Sampler (rate, len, Fc, As, filter);
+    void reset (void) {
+        resamp_rrrf_reset (mResamp);
     }
 
-    Sampler (Sampler &&me) {
-        mRsamp = resamp_crcf_create (me.mRate, me.mLen, me.mFc, me.mAs, me.mFilt);
+    float get_rate (void) {
+        return mRate;
     }
 
-    ~Sampler (void) {
-        resamp_crcf_destroy (mRsamp);
-    }
-
-    py::array_t<liquid_float_complex> execute (py::array_t<liquid_float_complex> inp) {
-        int len_in (py::len(inp));
-        liquid_float_complex y[len_in];
-        liquid_float_complex *x = array_to_ptr<liquid_float_complex>(inp);
-        unsigned int nd(0), nw(0);
-        for (auto n = 0; n < len_in; n++ ) {
-            resamp_crcf_execute (mRsamp, x[n], &y[nw], &nd);
-            nw += nd;
-        }
-        py::array_t<liquid_float_complex> ret(nw);
-        liquid_float_complex *z = array_to_ptr<liquid_float_complex>(ret);
-        std::copy (y, y+nw, z);
-        return ret;
+    void set_rate (float r) {
+        mRate = r;
+        resamp_rrrf_set_rate (mResamp,mRate);
     }
 
     void print (void) {
-        resamp_crcf_print (mRsamp);
+        resamp_rrrf_print(mResamp);
     }
 
-    void set_rate (double rate) {
-        mRate = rate;
-        resamp_crcf_destroy(mRsamp);
-        mRsamp = resamp_crcf_create (mRate, mLen, mFc, mAs, mFilt);
-        resamp_crcf_set_rate (mRsamp,mRate);
+    py::array_t<float> execute (py::array_t<float> inp) {
+        float *x = array_to_ptr<float>(inp);
+        float y[py::len(inp)];
+        unsigned int nd(0), nw(0); 
+        for (auto n = 0; n < py::len(inp); n++) {
+            resamp_rrrf_execute (mResamp, x[n], &y[nw], &nd);
+            nw += nd;
+        }
+        py::array_t<float> ret(nw);
+        float *z = array_to_ptr<float>(ret);
+        std::copy (y, y+nw, z);
+        return ret;    
     }
+};
 
-private:
-
+class ComplexResampler
+{
     float       mRate;
-    int         mLen;
-    float       mFc;
-    float       mAs;
-    int         mFilt;
+    resamp_cccf mResamp;
 
-    resamp_crcf mRsamp;
+public:
+
+    ComplexResampler (float r, int d, float fc, float sbsp, int nf) {
+        mRate = r;
+        mResamp = resamp_cccf_create (r,d,fc,sbsp,nf);
+    }
+
+    ~ComplexResampler (void) {
+        resamp_cccf_destroy (mResamp);
+    }
+
+    void reset (void) {
+        resamp_cccf_reset (mResamp);
+    }
+
+    float get_rate (void) {
+        return mRate;
+    }
+
+    void set_rate (float r) {
+        mRate = r;
+        resamp_cccf_set_rate (mResamp,mRate);
+    }
+
+    void print (void) {
+        resamp_cccf_print(mResamp);
+    }
+
+    py::array_t<std::complex<float>> execute (py::array_t<std::complex<float>> inp) {
+        std::complex<float> *x = array_to_ptr<std::complex<float>>(inp);
+        std::complex<float> y[py::len(inp)];
+        unsigned int nd(0), nw(0); 
+        for (auto n = 0; n < py::len(inp); n++) {
+            resamp_cccf_execute (mResamp, x[n], &y[nw], &nd);
+            nw += nd;
+        }
+        py::array_t<float> ret(nw);
+        std::complex<float> *z = array_to_ptr<std::complex<float>>(ret);
+        std::copy (y, y+nw, z);
+        return ret;    
+    }
 };
 
 PYBIND11_MODULE (liquiddsp, m)
@@ -674,7 +666,7 @@ PYBIND11_MODULE (liquiddsp, m)
         .def_property ("delay", &Delay::get_delay, &Delay::set_delay) 
         .def ("__call__", &Delay::call);
 
-    py::class_<IIRfilter_complex>(m, "IIRFilterComplex")
+    py::class_<IIRfilter_complex>(m, "ComplexIIRFilter")
         .def (py::init<std::string,std::string,int,float,float,float,float>(), 
             py::arg("filter_type") = "butter",
             py::arg("band_type") = "lowpass",
@@ -694,7 +686,7 @@ PYBIND11_MODULE (liquiddsp, m)
         .def ("__call__", &IIRfilter_complex::execute)
         .def ("print", &IIRfilter_complex::print);
 
-    py::class_<IIRfilter_real>(m, "IIRFilterReal")
+    py::class_<IIRfilter_real>(m, "RealIIRFilter")
         .def (py::init<std::string,std::string,int,float,float,float,float>(), 
             py::arg("filter_type") = "butter",
             py::arg("band_type") = "lowpass",
@@ -722,12 +714,6 @@ PYBIND11_MODULE (liquiddsp, m)
         .def (py::init<float>(), py::arg("sample_rate")=48000) 
         .def ("freqresponse", &DeemphasisFilter::response)
         .def ("__call__", &DeemphasisFilter::execute);
-
-    py::class_<FMDem>(m, "FMDem")
-        .def (py::init<float>(), py::arg("modulation_index")=0.33)
-        .def ("print", &FMDem::print)
-        .def ("reset", &FMDem::reset)
-        .def ("__call__", &FMDem::demod);
 
     py::class_<FreqDem>(m,"FreqDem")
         .def (py::init<float>())
@@ -760,11 +746,19 @@ PYBIND11_MODULE (liquiddsp, m)
         .def ("mix_up", &NCO::mix_up)
         .def ("mix_down", &NCO::mix_down);
 
-    py::class_<Sampler>(m,"Sampler")
-        .def (py::init<float,int,float,float,int>(),py::arg("rate")=0.9f,py::arg("len")=13,py::arg("Fc")=0.4f,py::arg("As")=20.0f,py::arg("Filt")=13)
-        .def ("__call__", &Sampler::execute)
-        .def ("set_rate",&Sampler::set_rate)
-        .def ("print",&Sampler::print); 
+    py::class_<RealResampler>(m, "RealResampler")
+        .def (py::init<float,int,float,float,int>(),py::arg("rate"),py::arg("len")=20,py::arg("Fc"),py::arg("As")=60.0f,py::arg("nfilter")=13)
+        .def ("print", &RealResampler::print)
+        .def ("reset", &RealResampler::reset)
+        .def ("__call__", &RealResampler::execute)
+        .def_property ("rate", &RealResampler::get_rate, &RealResampler::set_rate);
+
+    py::class_<ComplexResampler>(m,"ComplexResampler")
+        .def (py::init<float,int,float,float,int>(),py::arg("rate"),py::arg("len")=20,py::arg("Fc"),py::arg("As")=60.0f,py::arg("nfilter")=13)
+        .def ("print",&ComplexResampler::print) 
+        .def ("reset", &ComplexResampler::reset)
+        .def ("__call__", &ComplexResampler::execute)
+        .def_property ("rate", &ComplexResampler::get_rate, &ComplexResampler::set_rate);
 
     py::class_<AGC>(m,"AGC")
         .def (py::init())
