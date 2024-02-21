@@ -7,7 +7,7 @@ if platform == 'darwin':
     inc_path = [pb.get_include(), '/opt/homebrew/include']
     link_lib = ['liquid']
 elif platform == 'linux':
-    lib_path = ['/usr/local/lib', '/home/paul/boost_1_80_0/stage/lib']
+    lib_path = ['/usr/local/lib']
     inc_path = [pb.get_include(), '/usr/local/include']
     link_lib = ['liquid', 'm']
 
