@@ -495,7 +495,8 @@ struct AGC
 {
     AGC (void) {
         mSquelch = false;
-        mAGC = agc_crcf_create ();
+        mLock    = false;
+        mAGC     = agc_crcf_create ();
     }
 
    ~AGC (void) {
@@ -510,14 +511,16 @@ struct AGC
         return agc_crcf_get_bandwidth (mAGC);
     }
 
-    void squelch_enable (void) { 
-        mSquelch = true;
-        agc_crcf_squelch_enable (mAGC);
+    bool get_squelch (void) {
+        return mSquelch;
     }
 
-    void squelch_disable (void) {
-        mSquelch = false;
-        agc_crcf_squelch_disable (mAGC);
+    void set_squelch (bool val) {
+        mSquelch = val;
+        if (mSquelch) 
+            agc_crcf_squelch_enable (mAGC);
+        else
+            agc_crcf_squelch_disable (mAGC);
     }
 
     void squelch_set_threshold (double t) {
@@ -528,12 +531,52 @@ struct AGC
         return agc_crcf_squelch_get_threshold (mAGC);
     }
 
-    int status (void) {
-        return agc_crcf_squelch_get_status (mAGC);
+    float get_level (void) {
+        return agc_crcf_get_signal_level (mAGC);
     }
 
-    float signal_level (void) {
-        return agc_crcf_get_signal_level (mAGC);
+    void set_level (float level) {
+        agc_crcf_set_signal_level (mAGC, level);
+    }
+
+    float get_rssi (void) {
+        return agc_crcf_get_rssi (mAGC);
+    }
+
+    void set_rssi (float rssi) {
+        agc_crcf_set_rssi (mAGC, rssi);
+    }
+
+    bool get_lock (void) {
+        return mLock;
+    }
+
+    void set_lock (bool val) {
+        mLock = val;
+        if (mLock) 
+            agc_crcf_lock (mAGC);
+        else
+            agc_crcf_unlock (mAGC);
+    }
+
+    float get_gain (void) {
+        return agc_crcf_get_gain (mAGC);
+    }
+
+    void set_gain (float gain) {
+        agc_crcf_set_gain (mAGC, gain);
+    }
+
+    float get_scale (void) {
+        return agc_crcf_get_scale (mAGC);
+    }
+
+    void set_scale (float scale) {
+        agc_crcf_set_scale (mAGC, scale);
+    }
+
+    int status (void) {
+        return agc_crcf_squelch_get_status (mAGC);
     }
 
     void print (void) {
@@ -548,6 +591,7 @@ struct AGC
         py::array_t<liquid_float_complex> ret(py::len(inp));
         liquid_float_complex *x = array_to_ptr<liquid_float_complex>(inp);
         liquid_float_complex *y = array_to_ptr<liquid_float_complex>(ret);
+        //agc_crcf_execute_block (mAGC, x, py::len(inp), y);
         for (unsigned int n = 0; n < py::len(inp); n++) { 
             agc_crcf_execute (mAGC,x[n],&y[n]);
             if (mSquelch and agc_crcf_squelch_get_status (mAGC) != 3)
@@ -557,6 +601,7 @@ struct AGC
     }
 
     bool     mSquelch;
+    bool     mLock;
     agc_crcf mAGC;
 }; 
 
@@ -762,12 +807,15 @@ PYBIND11_MODULE (liquiddsp, m)
 
     py::class_<AGC>(m,"AGC")
         .def (py::init())
-        .def ("squelch_enable", &AGC::squelch_enable)
-        .def ("squelch_disable", &AGC::squelch_disable)
+        .def_property ("squelch", &AGC::get_squelch, &AGC::set_squelch)
         .def_property ("threshold", &AGC::squelch_get_threshold, &AGC::squelch_set_threshold)
         .def_property ("bandwidth", &AGC::get_bandwidth, &AGC::set_bandwidth)
-        .def ("signal_level", &AGC::signal_level)
-        .def ("status", &AGC::status)
+        .def_property ("level", &AGC::get_level, &AGC::set_level)
+        .def_property ("level_dB", &AGC::get_rssi, &AGC::set_rssi)
+        .def_property ("lock", &AGC::get_lock, &AGC::set_lock)
+        .def_property ("gain", &AGC::get_gain, &AGC::set_gain)
+        .def_property ("scale", &AGC::get_scale, &AGC::set_scale)
+        .def_property_readonly ("status", &AGC::status)
         .def ("print", &AGC::print)
         .def ("reset", &AGC::reset)
         .def ("__call__", &AGC::execute);
