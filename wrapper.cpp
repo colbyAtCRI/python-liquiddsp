@@ -649,7 +649,7 @@ public:
             resamp_cccf_execute (mResamp, x[n], &y[nw], &nd);
             nw += nd;
         }
-        py::array_t<float> ret(nw);
+        py::array_t<std::complex<float>> ret(nw);
         std::complex<float> *z = array_to_ptr<std::complex<float>>(ret);
         std::copy (y, y+nw, z);
         return ret;    
