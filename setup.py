@@ -17,7 +17,7 @@ liquiddsp  = Extension ( 'liquiddsp',
                     libraries = link_lib,
                     library_dirs = lib_path,
                     extra_compile_args = ['-std=c++11'],
-                    sources = ['wrapper.cpp'])
+                    sources = ['wrapper.cpp','agc_docs.cpp'])
 
 setup ( name = 'liquiddsp',
         version = '1.0',

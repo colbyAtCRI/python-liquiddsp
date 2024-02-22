@@ -1,23 +1,5 @@
-#define PYBIND11_DETAILED_ERROR_MESSAGES 
-#include <pybind11/pybind11.h>
-#include <pybind11/numpy.h>
-#include <pybind11/stl.h>
-#include <pybind11/cast.h>
-#include <pybind11/embed.h>
-#include <string>
-#include <iostream>
-#include <complex>
-#include <vector>
-#include <map>
-#include <liquid/liquid.h>
-
-namespace py = pybind11;
-
-template<class T>
-T *array_to_ptr (py::array_t<T> a)
-{
-    return static_cast<T*>(a.request().ptr);
-}
+#include "liquiddsp.hpp"
+#include "agc.hpp"
 
 class Delay 
 {
@@ -490,7 +472,7 @@ struct NCO
         return ret;
     } 
 };
-
+/*
 struct AGC 
 {
     AGC (void) {
@@ -604,7 +586,7 @@ struct AGC
     bool     mLock;
     agc_crcf mAGC;
 }; 
-
+*/
 class RealResampler
 {
     float       mRate;
@@ -652,6 +634,7 @@ public:
         return ret;    
     }
 };
+
 
 class ComplexResampler
 {
@@ -805,18 +788,18 @@ PYBIND11_MODULE (liquiddsp, m)
         .def ("__call__", &ComplexResampler::execute)
         .def_property ("rate", &ComplexResampler::get_rate, &ComplexResampler::set_rate);
 
-    py::class_<AGC>(m,"AGC")
+    py::class_<AGC>(m,"AGC",AGC::doc)
         .def (py::init())
-        .def_property ("squelch", &AGC::get_squelch, &AGC::set_squelch)
-        .def_property ("threshold", &AGC::squelch_get_threshold, &AGC::squelch_set_threshold)
-        .def_property ("bandwidth", &AGC::get_bandwidth, &AGC::set_bandwidth)
-        .def_property ("level", &AGC::get_level, &AGC::set_level)
-        .def_property ("level_dB", &AGC::get_rssi, &AGC::set_rssi)
-        .def_property ("lock", &AGC::get_lock, &AGC::set_lock)
-        .def_property ("gain", &AGC::get_gain, &AGC::set_gain)
-        .def_property ("scale", &AGC::get_scale, &AGC::set_scale)
-        .def_property_readonly ("status", &AGC::status)
-        .def ("print", &AGC::print)
+        .def_property ("squelch", &AGC::get_squelch, &AGC::set_squelch,AGC::squelch_doc)
+        .def_property ("threshold", &AGC::squelch_get_threshold, &AGC::squelch_set_threshold,AGC::threshold_doc)
+        .def_property ("bandwidth", &AGC::get_bandwidth, &AGC::set_bandwidth,AGC::bandwidth_doc)
+        .def_property ("level", &AGC::get_level, &AGC::set_level,AGC::level_doc)
+        .def_property ("level_dB", &AGC::get_rssi, &AGC::set_rssi,AGC::level_dB_doc)
+        .def_property ("lock", &AGC::get_lock, &AGC::set_lock,AGC::lock_doc)
+        .def_property ("gain", &AGC::get_gain, &AGC::set_gain,AGC::gain_doc)
+        .def_property ("scale", &AGC::get_scale, &AGC::set_scale,AGC::scale_doc)
+        .def_property_readonly ("status", &AGC::status,AGC::status_doc)
+        .def ("print", &AGC::print,AGC::print_doc)
         .def ("reset", &AGC::reset)
         .def ("__call__", &AGC::execute);
 }
