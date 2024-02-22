@@ -37,7 +37,7 @@ I've written several python interfaces for SDRs
 Each of these use python callbacks of the form or as a class with 
 the `__call__` member defined. A notional example
 
-`
+```
 from liquiddsp import NCO, Sampler, IIRfilter
 class RadioProcess:
 
@@ -50,4 +50,4 @@ class RadioProcess:
     def __call__(self, iq):
         pcm = self.resample ( self.am ( self.tuner (iq) ))
         # write pcm.tobytes() to pyaudio stream
-`
+```
