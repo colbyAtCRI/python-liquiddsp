@@ -34,13 +34,8 @@ I've written several python interfaces for SDRs
 - SDRPlay RSP2 and RSPduo (all are supported but I've only tested what I have)
 - RTLSDRs 
 
-Each of these use python callbacks of the form
-
-`def process_iqs (iq):
-    # iq is an numpy array of type numpy.complex64
-    pass`
-
-or as a class with the `__call__` member defined a notional example
+Each of these use python callbacks of the form or as a class with 
+the `__call__` member defined. A notional example
 
 `
 from liquiddsp import NCO, Sampler, IIRfilter
