@@ -1,5 +1,6 @@
 #include "liquiddsp.hpp"
 #include "agc.hpp"
+#include "resampler.hpp"
 
 class Delay 
 {
@@ -472,217 +473,6 @@ struct NCO
         return ret;
     } 
 };
-/*
-struct AGC 
-{
-    AGC (void) {
-        mSquelch = false;
-        mLock    = false;
-        mAGC     = agc_crcf_create ();
-    }
-
-   ~AGC (void) {
-        agc_crcf_destroy (mAGC);
-    }
-
-    void set_bandwidth (float bw) {
-        agc_crcf_set_bandwidth (mAGC,bw);
-    }
-
-    float get_bandwidth (void) {
-        return agc_crcf_get_bandwidth (mAGC);
-    }
-
-    bool get_squelch (void) {
-        return mSquelch;
-    }
-
-    void set_squelch (bool val) {
-        mSquelch = val;
-        if (mSquelch) 
-            agc_crcf_squelch_enable (mAGC);
-        else
-            agc_crcf_squelch_disable (mAGC);
-    }
-
-    void squelch_set_threshold (double t) {
-        agc_crcf_squelch_set_threshold (mAGC,t);
-    }
-
-    double squelch_get_threshold (void) {
-        return agc_crcf_squelch_get_threshold (mAGC);
-    }
-
-    float get_level (void) {
-        return agc_crcf_get_signal_level (mAGC);
-    }
-
-    void set_level (float level) {
-        agc_crcf_set_signal_level (mAGC, level);
-    }
-
-    float get_rssi (void) {
-        return agc_crcf_get_rssi (mAGC);
-    }
-
-    void set_rssi (float rssi) {
-        agc_crcf_set_rssi (mAGC, rssi);
-    }
-
-    bool get_lock (void) {
-        return mLock;
-    }
-
-    void set_lock (bool val) {
-        mLock = val;
-        if (mLock) 
-            agc_crcf_lock (mAGC);
-        else
-            agc_crcf_unlock (mAGC);
-    }
-
-    float get_gain (void) {
-        return agc_crcf_get_gain (mAGC);
-    }
-
-    void set_gain (float gain) {
-        agc_crcf_set_gain (mAGC, gain);
-    }
-
-    float get_scale (void) {
-        return agc_crcf_get_scale (mAGC);
-    }
-
-    void set_scale (float scale) {
-        agc_crcf_set_scale (mAGC, scale);
-    }
-
-    int status (void) {
-        return agc_crcf_squelch_get_status (mAGC);
-    }
-
-    void print (void) {
-        agc_crcf_print (mAGC);
-    }
-
-    void reset (void) {
-        agc_crcf_reset (mAGC);
-    }
-
-    py::array_t<liquid_float_complex> execute (py::array_t<liquid_float_complex> inp) {
-        py::array_t<liquid_float_complex> ret(py::len(inp));
-        liquid_float_complex *x = array_to_ptr<liquid_float_complex>(inp);
-        liquid_float_complex *y = array_to_ptr<liquid_float_complex>(ret);
-        //agc_crcf_execute_block (mAGC, x, py::len(inp), y);
-        for (unsigned int n = 0; n < py::len(inp); n++) { 
-            agc_crcf_execute (mAGC,x[n],&y[n]);
-            if (mSquelch and agc_crcf_squelch_get_status (mAGC) != 3)
-                y[n] *= 0.0;
-        }
-        return ret;
-    }
-
-    bool     mSquelch;
-    bool     mLock;
-    agc_crcf mAGC;
-}; 
-*/
-class RealResampler
-{
-    float       mRate;
-    resamp_rrrf mResamp;
-
-public:
-
-    RealResampler (float r, int d, float fc, float sbsp, int nf) {
-        mRate = r;
-        mResamp = resamp_rrrf_create (r,d,fc,sbsp,nf);
-    }
-
-    ~RealResampler (void) {
-        resamp_rrrf_destroy (mResamp);
-    }
-
-    void reset (void) {
-        resamp_rrrf_reset (mResamp);
-    }
-
-    float get_rate (void) {
-        return mRate;
-    }
-
-    void set_rate (float r) {
-        mRate = r;
-        resamp_rrrf_set_rate (mResamp,mRate);
-    }
-
-    void print (void) {
-        resamp_rrrf_print(mResamp);
-    }
-
-    py::array_t<float> execute (py::array_t<float> inp) {
-        float *x = array_to_ptr<float>(inp);
-        float y[py::len(inp)];
-        unsigned int nd(0), nw(0); 
-        for (auto n = 0; n < py::len(inp); n++) {
-            resamp_rrrf_execute (mResamp, x[n], &y[nw], &nd);
-            nw += nd;
-        }
-        py::array_t<float> ret(nw);
-        float *z = array_to_ptr<float>(ret);
-        std::copy (y, y+nw, z);
-        return ret;    
-    }
-};
-
-
-class ComplexResampler
-{
-    float       mRate;
-    resamp_cccf mResamp;
-
-public:
-
-    ComplexResampler (float r, int d, float fc, float sbsp, int nf) {
-        mRate = r;
-        mResamp = resamp_cccf_create (r,d,fc,sbsp,nf);
-    }
-
-    ~ComplexResampler (void) {
-        resamp_cccf_destroy (mResamp);
-    }
-
-    void reset (void) {
-        resamp_cccf_reset (mResamp);
-    }
-
-    float get_rate (void) {
-        return mRate;
-    }
-
-    void set_rate (float r) {
-        mRate = r;
-        resamp_cccf_set_rate (mResamp,mRate);
-    }
-
-    void print (void) {
-        resamp_cccf_print(mResamp);
-    }
-
-    py::array_t<std::complex<float>> execute (py::array_t<std::complex<float>> inp) {
-        std::complex<float> *x = array_to_ptr<std::complex<float>>(inp);
-        std::complex<float> y[py::len(inp)];
-        unsigned int nd(0), nw(0); 
-        for (auto n = 0; n < py::len(inp); n++) {
-            resamp_cccf_execute (mResamp, x[n], &y[nw], &nd);
-            nw += nd;
-        }
-        py::array_t<std::complex<float>> ret(nw);
-        std::complex<float> *z = array_to_ptr<std::complex<float>>(ret);
-        std::copy (y, y+nw, z);
-        return ret;    
-    }
-};
 
 PYBIND11_MODULE (liquiddsp, m)
 {
@@ -774,12 +564,12 @@ PYBIND11_MODULE (liquiddsp, m)
         .def ("mix_up", &NCO::mix_up)
         .def ("mix_down", &NCO::mix_down);
 
-    py::class_<RealResampler>(m, "RealResampler")
-        .def (py::init<float,int,float,float,int>(),py::arg("rate"),py::arg("len")=20,py::arg("Fc"),py::arg("As")=60.0f,py::arg("nfilter")=13)
-        .def ("print", &RealResampler::print)
-        .def ("reset", &RealResampler::reset)
-        .def ("__call__", &RealResampler::execute)
-        .def_property ("rate", &RealResampler::get_rate, &RealResampler::set_rate);
+    py::class_<RealResampler>(m, "RealResampler",RealResampler::doc)
+        .def (py::init<float,int,float,float,int>(),py::arg("rate"),py::arg("len")=20,py::arg("Fc"),py::arg("As")=60.0f,py::arg("nfilter")=13,RealResampler::init_doc)
+        .def ("print", &RealResampler::print,RealResampler::print_doc)
+        .def ("reset", &RealResampler::reset,RealResampler::reset_doc)
+        .def ("__call__", &RealResampler::execute,RealResampler::execute_doc)
+        .def_property ("rate", &RealResampler::get_rate, &RealResampler::set_rate,RealResampler::rate_doc);
 
     py::class_<ComplexResampler>(m,"ComplexResampler")
         .def (py::init<float,int,float,float,int>(),py::arg("rate"),py::arg("len")=20,py::arg("Fc"),py::arg("As")=60.0f,py::arg("nfilter")=13)
