@@ -799,7 +799,8 @@ PYBIND11_MODULE (liquiddsp, m)
         .def_property ("gain", &AGC::get_gain, &AGC::set_gain,AGC::gain_doc)
         .def_property ("scale", &AGC::get_scale, &AGC::set_scale,AGC::scale_doc)
         .def_property_readonly ("status", &AGC::status,AGC::status_doc)
+        .def_property ("onRise", &AGC::get_onRise, &AGC::set_onRise,AGC::onRise_doc)
         .def ("print", &AGC::print,AGC::print_doc)
-        .def ("reset", &AGC::reset)
-        .def ("__call__", &AGC::execute);
+        .def ("reset", &AGC::reset,AGC::reset_doc)
+        .def ("__call__", &AGC::execute,AGC::execute_doc);
 }

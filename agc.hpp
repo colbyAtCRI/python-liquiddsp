@@ -4,6 +4,7 @@
 struct AGC 
 {
     AGC (void) {
+        mOnRise  = py::none();
         mSquelch = false;
         mLock    = false;
         mAGC     = agc_crcf_create ();
@@ -97,21 +98,40 @@ struct AGC
         agc_crcf_reset (mAGC);
     }
 
+    py::object get_onRise (void) {
+        return mOnRise;
+    }
+
+    void set_onRise (py::object clb) {
+        mOnRise = clb;
+    }
+
     py::array_t<liquid_float_complex> execute (py::array_t<liquid_float_complex> inp) {
+        static int state_last = LIQUID_AGC_SQUELCH_UNKNOWN;
         py::array_t<liquid_float_complex> ret(py::len(inp));
         liquid_float_complex *x = array_to_ptr<liquid_float_complex>(inp);
         liquid_float_complex *y = array_to_ptr<liquid_float_complex>(ret);
         for (unsigned int n = 0; n < py::len(inp); n++) { 
             agc_crcf_execute (mAGC,x[n],&y[n]);
-            if (mSquelch and agc_crcf_squelch_get_status (mAGC) == LIQUID_AGC_SQUELCH_SIGNALLO)
+            int state = agc_crcf_squelch_get_status (mAGC);
+            if ( state != state_last ) {
+                state_last = state;
+                if (state == LIQUID_AGC_SQUELCH_RISE) {
+                    if ( not mOnRise.is(py::none()) )
+                        mOnRise();
+                }
+            }
+            if ( state == LIQUID_AGC_SQUELCH_SIGNALLO or state == LIQUID_AGC_SQUELCH_ENABLED )
                 y[n] *= 0.0;
         }
         return ret;
     }
 
-    bool     mSquelch;
-    bool     mLock;
-    agc_crcf mAGC;
+    bool       mSquelch;
+    bool       mLock;
+    agc_crcf   mAGC;
+    py::object mOnRise;
+
     static const char *doc;
     static const char *threshold_doc;
     static const char *bandwidth_doc;
@@ -124,4 +144,6 @@ struct AGC
     static const char *lock_doc;
     static const char *scale_doc;  
     static const char *reset_doc;
+    static const char *onRise_doc;
+    static const char *execute_doc;
 }; 
