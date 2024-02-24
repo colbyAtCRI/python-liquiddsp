@@ -19,6 +19,117 @@ std::map<std::string,liquid_iirdes_bandtype> band_type_map =
     {"bandstop", LIQUID_IIRDES_BANDSTOP}
 };
 
+// Base class 
+class CIIRFilter 
+{
+public:
+    iirfilt_crcf mFilter;
+
+    CIIRFilter (void) : mFilter(nullptr) {}
+
+    CIIRFilter (py::array_t<float> bcoef, py::array_t<float> acoef) {
+        float *b = array_to_ptr<float>(bcoef); 
+        float *a = array_to_ptr<float>(acoef);
+        mFilter = iirfilt_crcf_create (b, py::len(bcoef), a, py::len(acoef));
+    }
+
+   ~CIIRFilter (void) {
+        if (mFilter) 
+            iirfilt_crcf_destroy (mFilter);
+    }
+
+    void reset (void) {
+        if (mFilter) 
+            iirfilt_crcf_reset(mFilter);
+    }
+
+    std::complex<float> freqresponse (float f) {
+        std::complex<float> resp;
+        iirfilt_crcf_freqresponse (mFilter,f,&resp);
+        return resp;
+    }
+
+    py::array_t<std::complex<float>> execute (py::array_t<std::complex<float>> inp) {
+        py::array_t<std::complex<float>> ret(py::len(inp));
+        std::complex<float> *x = array_to_ptr<std::complex<float>> (inp);
+        std::complex<float> *y = array_to_ptr<std::complex<float>> (ret);
+        iirfilt_crcf_execute_block (mFilter, x, py::len(inp), y);
+        return ret;
+    }
+};
+
+class CLowpassIIR : public CIIRFilter 
+{
+public:
+
+    CLowpassIIR (std::string typ, int order, float fc, float ap, float as) : CIIRFilter() {
+        liquid_iirdes_filtertype ft(LIQUID_IIRDES_BUTTER);
+        if ( filter_type_map.find(typ) != filter_type_map.end() ) {
+            ft = filter_type_map[typ];
+        }
+        mFilter = iirfilt_crcf_create_prototype (ft,LIQUID_IIRDES_LOWPASS, LIQUID_IIRDES_SOS, order, fc, 0.1f, ap, as);
+    }
+
+   ~CLowpassIIR (void) {
+        iirfilt_crcf_destroy (mFilter);
+        mFilter = nullptr;
+    } 
+};
+
+class CHighpassIIR : public CIIRFilter 
+{
+public:
+
+    CHighpassIIR (std::string typ, int order, float fc, float ap, float as) : CIIRFilter() {
+        liquid_iirdes_filtertype ft(LIQUID_IIRDES_BUTTER);
+        if ( filter_type_map.find(typ) != filter_type_map.end() ) {
+            ft = filter_type_map[typ];
+        }
+        mFilter = iirfilt_crcf_create_prototype (ft,LIQUID_IIRDES_HIGHPASS, LIQUID_IIRDES_SOS, order, fc, 0.1f, ap, as);
+    }
+
+   ~CHighpassIIR (void) {
+        iirfilt_crcf_destroy (mFilter);
+        mFilter = nullptr;
+    } 
+};
+
+class CBandpassIIR : public CIIRFilter 
+{
+public:
+
+    CBandpassIIR (std::string typ, int order, float fc, float f0, float ap, float as) : CIIRFilter() {
+        liquid_iirdes_filtertype ft(LIQUID_IIRDES_BUTTER);
+        if ( filter_type_map.find(typ) != filter_type_map.end() ) {
+            ft = filter_type_map[typ];
+        }
+        mFilter = iirfilt_crcf_create_prototype (ft,LIQUID_IIRDES_BANDPASS, LIQUID_IIRDES_SOS, order, fc, f0, ap, as);
+    }
+
+   ~CBandpassIIR (void) {
+        iirfilt_crcf_destroy (mFilter);
+        mFilter = nullptr;
+    } 
+};
+
+class CBandstopIIR : public CIIRFilter 
+{
+public:
+
+    CBandstopIIR (std::string typ, int order, float fc, float f0, float ap, float as) : CIIRFilter() {
+        liquid_iirdes_filtertype ft(LIQUID_IIRDES_BUTTER);
+        if ( filter_type_map.find(typ) != filter_type_map.end() ) {
+            ft = filter_type_map[typ];
+        }
+        mFilter = iirfilt_crcf_create_prototype (ft,LIQUID_IIRDES_BANDSTOP, LIQUID_IIRDES_SOS, order, fc, f0, ap, as);
+    }
+
+   ~CBandstopIIR (void) {
+        iirfilt_crcf_destroy (mFilter);
+        mFilter = nullptr;
+    } 
+};
+
 // I'm going to do just LIQUID_IIRDES_SOS, or the one that works
 class ComplexIIRFilter
 {
