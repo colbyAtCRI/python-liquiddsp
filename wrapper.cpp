@@ -2,6 +2,7 @@
 #include "agc.hpp"
 #include "resampler.hpp"
 #include "iirfilter.hpp"
+#include "firfilter.hpp"
 #include "demod.hpp"
 #include "nco.hpp"
 #include "utility.hpp"
@@ -125,5 +126,21 @@ PYBIND11_MODULE (liquiddsp, m)
         .def ("print", &AGC::print,AGC::print_doc)
         .def ("reset", &AGC::reset,AGC::reset_doc)
         .def ("__call__", &AGC::execute,AGC::execute_doc);
+
+    py::class_<RealFIRFilter>(m, "RealFIRFilter")
+        .def (py::init<py::array_t<float>>())
+        .def ("freqresponse", &RealFIRFilter::freqresponse)
+        .def ("__call__", &RealFIRFilter::execute);
+
+    py::class_<RealDCBlocker>(m,"RealDCBlocker")
+        .def (py::init<int,float>(),py::arg("slen")=25,py::arg("As")=20.0f)
+        .def ("freqresponse", &RealDCBlocker::freqresponse)
+        .def ("__call__", &RealDCBlocker::execute);
+        
+    py::class_<RealKaiserBessel>(m,"RealKaiserBessel")
+        .def (py::init<int,float,float,float>(),py::arg("flen")=25,py::arg("Fc"),py::arg("As")=20.0f,py::arg("offset")=0.0f)
+        .def ("freqresponse", &RealKaiserBessel::freqresponse)
+        .def ("__call__", &RealKaiserBessel::execute);
+
 }
 
