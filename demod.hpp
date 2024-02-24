@@ -1,6 +1,67 @@
 #pragma once
 #include "liquiddsp.hpp"
 
+// Okay, liquid's ampmodem isn't viable as is for AM broadcast audio 
+// when carriers as present. The reason stems from the DC blocker
+// applied to the output of the demodulator badly distorts the frequency
+// spectrum and, the results vary depending on input sample rate.
+// Other than this, ampmodem_demod_dsb_pll_carrier is a fine algorithm.
+
+class BroadcastAM
+{
+public:
+    nco_crcf     mMixer;
+    firfilt_crcf mLowpass;
+    wdelaycf     mDelay;
+
+    BroadcastAM (int m) {
+        mMixer = nco_crcf_create (LIQUID_NCO);
+        nco_crcf_pll_set_bandwidth (mMixer, 0.001f);
+        mLowpass = firfilt_crcf_create_kaiser (2*m+1, 0.01f, 40.0f, 0.0f);
+        mDelay = wdelaycf_create (m);
+    }
+
+   ~BroadcastAM (void) {
+        nco_crcf_destroy (mMixer);
+        firfilt_crcf_destroy (mLowpass);
+        wdelaycf_destroy (mDelay);
+    }
+
+    void reset (void) {
+        nco_crcf_reset (mMixer);
+        firfilt_crcf_reset (mLowpass);
+        wdelaycf_reset (mDelay);
+    }
+
+    py::array_t<float> execute (py::array_t<std::complex<float>> inp) {
+        py::array_t<float> ret(py::len(inp));
+        std::complex<float> *x = array_to_ptr<std::complex<float>>(inp);
+        float *y = array_to_ptr<float>(ret);
+        for (auto n = 0; n < py::len(inp); n++)
+            y[n] = demod_one (x[n]);
+        return ret;
+    }
+
+    float demod_one (std::complex<float> x) {
+        std::complex<float> x0, x1;
+        firfilt_crcf_push (mLowpass, x);
+        firfilt_crcf_execute (mLowpass, &x0);
+        wdelaycf_push (mDelay, x);
+        wdelaycf_read (mDelay, &x1);
+
+        std::complex<float> v0, v1;
+        nco_crcf_mix_down (mMixer, x0, &v0);
+        nco_crcf_mix_down (mMixer, x1, &v1);
+
+        float phase_error = arg(v0);
+        nco_crcf_pll_step (mMixer, phase_error);
+
+        nco_crcf_step (mMixer);
+
+        return real(v1);
+    }
+};
+
 class FreqDem
 {
     float   mKd;

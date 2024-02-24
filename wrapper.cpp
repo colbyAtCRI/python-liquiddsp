@@ -142,5 +142,9 @@ PYBIND11_MODULE (liquiddsp, m)
         .def ("freqresponse", &RealKaiserBessel::freqresponse)
         .def ("__call__", &RealKaiserBessel::execute);
 
+    py::class_<BroadcastAM>(m,"BroadcastAM")
+        .def (py::init<int>(),py::arg("slen")=25)
+        .def ("reset", &BroadcastAM::reset)
+        .def ("__call__", &BroadcastAM::execute);
 }
 
