@@ -39,8 +39,7 @@ public:
 class RealDCBlocker : public RealFIRFilter
 {
 public:
-    RealDCBlocker (int m, float as) : RealFIRFilter(py::array_t<float>(7)) {
-        firfilt_rrrf_destroy (mFilter);
+    RealDCBlocker (int m, float as) : RealFIRFilter() {
         mFilter = firfilt_rrrf_create_dc_blocker (m,as);
     }
 
@@ -54,9 +53,11 @@ class RealKaiserBessel : public RealFIRFilter
 {
 public:
 
-    RealKaiserBessel (int flen, float fc, float as, float offset) {
-        firfilt_rrrf_destroy (mFilter);
+    RealKaiserBessel (int flen, float fc, float as, float offset) : RealFIRFilter() {
+        std::complex<float> res0;
         mFilter = firfilt_rrrf_create_kaiser (flen, fc, as, offset);
+        firfilt_rrrf_freqresponse(mFilter,0.0f,&res0);
+        firfilt_rrrf_set_scale (mFilter,1.0/abs(res0));
     }
 
    ~RealKaiserBessel (void) {
