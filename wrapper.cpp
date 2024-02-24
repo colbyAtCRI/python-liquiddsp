@@ -69,6 +69,58 @@ PYBIND11_MODULE (liquiddsp, m)
         .def ("freqresponse", &CBandstopIIR::freqresponse)
         .def ("__call__", &CBandstopIIR::execute);
 
+    py::class_<RIIRFilter>(m,"RIIRFilter")
+        .def (py::init<py::array_t<float>,py::array_t<float>>(),py::arg("Bc"),py::arg("Ac"))
+        .def ("reset", &RIIRFilter::reset)
+        .def ("freqresponse", &RIIRFilter::freqresponse)
+        .def ("__call__", &RIIRFilter::execute);
+
+    py::class_<RLowpassIIR>(m,"RLowpassIIR")
+        .def (py::init<std::string,int,float,float,float>(), 
+            py::arg("filter_type")="butter",
+            py::arg("order"),
+            py::arg("Fc"),
+            py::arg("Ap")=0.5f,
+            py::arg("As")=20.0f)
+        .def ("reset", &RLowpassIIR::reset)
+        .def ("freqresponse", &RLowpassIIR::freqresponse)
+        .def ("__call__", &RLowpassIIR::execute);
+
+    py::class_<RHighpassIIR>(m,"RHighpassIIR")
+        .def (py::init<std::string,int,float,float,float>(), 
+            py::arg("filter_type")="butter",
+            py::arg("order"),
+            py::arg("Fc"),
+            py::arg("Ap")=0.5f,
+            py::arg("As")=20.0f)
+        .def ("reset", &RHighpassIIR::reset)
+        .def ("freqresponse", &RHighpassIIR::freqresponse)
+        .def ("__call__", &RHighpassIIR::execute);
+
+    py::class_<RBandpassIIR>(m,"RBandpassIIR")
+        .def (py::init<std::string,int,float,float,float,float>(), 
+            py::arg("filter_type")="butter",
+            py::arg("order"),
+            py::arg("Fc"),
+            py::arg("F0"),
+            py::arg("Ap")=0.5f,
+            py::arg("As")=20.0f)
+        .def ("reset", &RBandpassIIR::reset)
+        .def ("freqresponse", &RBandpassIIR::freqresponse)
+        .def ("__call__", &RBandpassIIR::execute);
+
+    py::class_<RBandstopIIR>(m,"RBandstopIIR")
+        .def (py::init<std::string,int,float,float,float,float>(), 
+            py::arg("filter_type")="butter",
+            py::arg("order"),
+            py::arg("Fc"),
+            py::arg("F0"),
+            py::arg("Ap")=0.5f,
+            py::arg("As")=20.0f)
+        .def ("reset", &RBandstopIIR::reset)
+        .def ("freqresponse", &RBandstopIIR::freqresponse)
+        .def ("__call__", &RBandstopIIR::execute);
+
     py::class_<ComplexIIRFilter>(m, "ComplexIIRFilter")
         .def (py::init<std::string,std::string,int,float,float,float,float>(), 
             py::arg("filter_type") = "butter",
