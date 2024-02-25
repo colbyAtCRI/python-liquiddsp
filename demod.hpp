@@ -12,12 +12,15 @@ class BroadcastAM
 public:
     nco_crcf     mMixer;
     firfilt_crcf mLowpass;
+    iirfilt_rrrf mDCBlock;
     wdelaycf     mDelay;
 
     BroadcastAM (int m) {
+        float fc = 20.0f/48000.0f;
         mMixer = nco_crcf_create (LIQUID_NCO);
         nco_crcf_pll_set_bandwidth (mMixer, 0.001f);
         mLowpass = firfilt_crcf_create_kaiser (2*m+1, 0.01f, 40.0f, 0.0f);
+        mDCBlock = iirfilt_rrrf_create_prototype (LIQUID_IIRDES_CHEBY2,LIQUID_IIRDES_HIGHPASS,LIQUID_IIRDES_SOS,3,fc,0.0f,0.5f,20.0f);
         mDelay = wdelaycf_create (m);
     }
 
@@ -58,7 +61,43 @@ public:
 
         nco_crcf_step (mMixer);
 
-        return real(v1);
+        float outp;
+        iirfilt_rrrf_execute (mDCBlock, real(v1), &outp);
+        return outp;
+    }
+};
+
+class SSBDemod
+{
+public:
+    bool     mUSB;
+    firhilbf mHilbert;
+
+    SSBDemod (std::string band) {
+        mUSB = band == "usb";
+        mHilbert = firhilbf_create (25,60.0f);
+    }
+
+   ~SSBDemod (void) {
+        firhilbf_destroy (mHilbert);
+    }
+
+    void reset (void) {
+        firhilbf_reset (mHilbert);
+    }
+
+    py::array_t<float> execute (py::array_t<std::complex<float>> inp) {
+        py::array_t<float> ret(py::len(inp));
+        float *y = array_to_ptr<float> (ret);
+        std::complex<float> *x = array_to_ptr<std::complex<float>>(inp);
+        float junk;
+        if (mUSB)
+            for (auto n = 0; n < py::len(inp); n++)
+                firhilbf_c2r_execute (mHilbert,x[n],&junk,&y[n]);
+        else
+            for (auto n = 0; n < py::len(inp); n++)
+                firhilbf_c2r_execute (mHilbert,x[n],&y[n],&junk);
+        return ret;
     }
 };
 

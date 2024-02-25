@@ -250,5 +250,10 @@ PYBIND11_MODULE (liquiddsp, m)
         .def (py::init<int>(),py::arg("slen")=25)
         .def ("reset", &BroadcastAM::reset)
         .def ("__call__", &BroadcastAM::execute);
+
+    py::class_<SSBDemod>(m,"SSBDemod")
+        .def (py::init<std::string>())
+        .def ("reset", &SSBDemod::reset)
+        .def ("__call__", &SSBDemod::execute);
 }
 
