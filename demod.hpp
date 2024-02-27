@@ -3,8 +3,6 @@
 
 class FMStereo 
 {
-    iirfilt_crcf mWindow; 
-    iirfilt_rrrf mMixTone;
     nco_crcf     mMixer;
     freqdem      mDemod;
     iirfilt_rrrf mEmphL;
@@ -12,35 +10,28 @@ class FMStereo
     resamp_rrrf  mAudioL;
     resamp_rrrf  mAudioR;
 
+    float phase_error;
+
 public:
 
-    FMStereo (float iq_rate, float pcm_rate) {
-        liquid_iirdes_filtertype cb (LIQUID_IIRDES_CHEBY2);
-        liquid_iirdes_bandtype   lp (LIQUID_IIRDES_LOWPASS);
-        liquid_iirdes_bandtype   bp (LIQUID_IIRDES_BANDPASS);
-        liquid_iirdes_format     fm (LIQUID_IIRDES_SOS);
-        float                    fc (200000.0f/iq_rate);
-        float                    tf (18000.0f/iq_rate);
-        float                    t0 (19000.0f/iq_rate);
-        float                    mB[1], mA[2];
+    FMStereo (float iq_rate, float pcm_rate) 
+    {
+        float mB[1], mA[2];
 
+        // standard US 75 us de-emphasis filter
         mA[0] = 1.0;
         mA[1] = -exp(-1.0/(75.0E-6 * iq_rate));
         mB[0] = 1.0 + mA[1];
 
-        mWindow  = iirfilt_crcf_create_prototype (cb, lp, fm, 4, fc, 0.0f, 0.5f, 60.0f);
-        mMixTone = iirfilt_rrrf_create_prototype (cb, bp, fm, 4, tf,   t0, 1.0f, 30.0f);
         mMixer   = nco_crcf_create (LIQUID_NCO);
         mDemod   = freqdem_create (4.0);
         mEmphL   = iirfilt_rrrf_create (mB,1,mA,2);
         mEmphR   = iirfilt_rrrf_create (mB,1,mA,2);
-        mAudioL  = resamp_rrrf_create (pcm_rate/iq_rate,20,pcm_rate/iq_rate,60.0f,13);
-        mAudioR  = resamp_rrrf_create (pcm_rate/iq_rate,20,pcm_rate/iq_rate,60.0f,13);
+        mAudioL  = resamp_rrrf_create_default (pcm_rate/iq_rate);
+        mAudioR  = resamp_rrrf_create_default (pcm_rate/iq_rate);
     }
 
     void reset (void) {
-        iirfilt_crcf_reset (mWindow);
-        iirfilt_rrrf_reset (mMixTone);
         resamp_rrrf_reset  (mAudioL);
         resamp_rrrf_reset  (mAudioR);
     }
@@ -63,22 +54,20 @@ public:
     unsigned int demod_one (std::complex<float> x, float *left, float *right) {
         std::complex<float> v, tc, sc;
         float s, t;
-        // select a 200,000 Hz wide window about base band
-        iirfilt_crcf_execute (mWindow, x, &v);
 
         // demodulate full real signal
-        freqdem_demodulate (mDemod,v,&s);
+        freqdem_demodulate (mDemod,x,&s);
 
-        // select 16 +/- 1 kHz containing the mixing tone
-        iirfilt_rrrf_execute (mMixTone, s, &t);
-
-        // mix both tone and audio signal
-        nco_crcf_mix_down (mMixer, t,  &tc);  // down by 19 kHz
         nco_crcf_mix_down (mMixer, s,  &sc);  // down by 19 kHz
+
+        // one pole filter 
+        phase_error = 0.999 * phase_error + 0.001 * arg(sc);
+
+        // shift 19 kHz more to bring L-R to base band 
         nco_crcf_mix_down (mMixer, sc, &sc);  // down by 38 kHz
 
-        // adjust tone phase
-        nco_crcf_pll_step (mMixer, arg(tc));
+        // adjust mixer phase
+        nco_crcf_pll_step (mMixer, phase_error);
 
         // step mixer 
         nco_crcf_step (mMixer);
