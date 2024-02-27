@@ -12,6 +12,16 @@ PYBIND11_MODULE (liquiddsp, m)
 
     m.def ("bytes_to_iq", bytes_to_iq);
 
+    py::class_<RResampler>(m,"RResampler")
+        .def (py::init<float>(),py::arg("rate"))
+        .def ("reset", &RResampler::reset)
+        .def ("__call__", &RResampler::execute);
+
+    py::class_<CResampler>(m,"CResampler") 
+        .def (py::init<float>(), py::arg("rate"))
+        .def ("reset", &CResampler::reset)
+        .def ("__call__", &CResampler::execute);
+
     py::class_<Delay>(m, "Delay")
         .def (py::init<int>(), py::arg("nd")=1)
         .def_property ("delay", &Delay::get_delay, &Delay::set_delay) 
