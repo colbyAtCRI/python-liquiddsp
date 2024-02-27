@@ -16,7 +16,7 @@ liquiddsp  = Extension ( 'liquiddsp',
                     include_dirs = inc_path,
                     libraries = link_lib,
                     library_dirs = lib_path,
-                    extra_compile_args = ['-std=c++11'],
+                    extra_compile_args = ['-std=c++11','-Wno-deprecated'],
                     sources = ['wrapper.cpp','agc_docs.cpp','resampler_doc.cpp'])
 
 setup ( name = 'liquiddsp',

@@ -251,6 +251,11 @@ PYBIND11_MODULE (liquiddsp, m)
         .def ("reset", &BroadcastAM::reset)
         .def ("__call__", &BroadcastAM::execute);
 
+    py::class_<FMStereo>(m,"FMStereo")
+        .def (py::init<float,float>(),py::arg("iq_rate")=600000.0f,py::arg("pcm_rate")=48000.0f)
+        .def ("reset", &FMStereo::reset)
+        .def ("__call__", &FMStereo::execute);
+
     py::class_<SSBDemod>(m,"SSBDemod")
         .def (py::init<std::string>())
         .def ("reset", &SSBDemod::reset)
