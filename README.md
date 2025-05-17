@@ -2,13 +2,12 @@
 A vectorized pybind11 interface for liquid-dsp. 
 
 # Install
-Provides a python module liquiddsp for python 3. To build one needs 
+Uses cmake and scikit build system to provide a python extension 
+module liquiddsp for python 3. To build one needs 
 
 - liquid-dsp (brew install)
 - pybind11   (pip install)
 - numpy      (pip install)
-- setuptools (pip install)
-- wheel      (pip install)
 
 Follow the typical steps,
 
@@ -18,13 +17,9 @@ git clone https://github.com/colbyAtCRI/python-liquiddsp.git
 cd python-liquiddsp
 
 ```
-either
+do
 ```
-make
-```
-or do
-```
-pip install -e .
+pip install .
 ```
 # Background
 
